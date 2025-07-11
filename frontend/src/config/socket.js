@@ -19,7 +19,7 @@ export const initializeSocket = (projectId) => {
         console.log(`Initializing socket connection to ${API_URL} for project ${projectId}`);
 
         // Get auth token from localStorage
-        const authToken = localStorage.getItem('authToken');
+        const authToken = localStorage.getItem('token');
         
         // Debug logging
         console.log('Socket connection with token?', !!authToken);
@@ -69,7 +69,7 @@ export const initializeSocket = (projectId) => {
                 window.dispatchEvent(new CustomEvent('auth_refresh_needed'));
                 
                 // Try to reconnect using token from localStorage in case cookie is not working
-                const latestToken = localStorage.getItem('authToken');
+                const latestToken = localStorage.getItem('token');
                 if (latestToken) {
                     socket.auth = { token: latestToken };
                     socket.io.opts.extraHeaders = {
@@ -111,7 +111,7 @@ export const initializeSocket = (projectId) => {
                     reconnectTimer = setTimeout(() => {
                         console.log('Attempting to reconnect after disconnect...');
                         // Try to reconnect using token from localStorage
-                        const latestToken = localStorage.getItem('authToken');
+                        const latestToken = localStorage.getItem('token');
                         if (latestToken) {
                             socket.auth = { token: latestToken };
                             socket.io.opts.extraHeaders = {
@@ -169,7 +169,7 @@ export const sendMessage = (event, data) => {
             console.warn('Socket not connected when trying to send message. Reconnecting...');
             
             // Try to refresh auth token before reconnecting
-            const latestToken = localStorage.getItem('authToken');
+            const latestToken = localStorage.getItem('token');
             if (latestToken) {
                 socket.auth = { token: latestToken };
                 socket.io.opts.extraHeaders = {
@@ -238,7 +238,7 @@ export const refreshSocketAuth = (newToken) => {
         
         if (newToken) {
             // Store token for reconnection scenarios
-            localStorage.setItem('authToken', newToken);
+            localStorage.setItem('token', newToken);
             
             // Update socket auth
             socket.auth = { token: newToken };

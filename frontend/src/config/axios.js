@@ -26,7 +26,7 @@ if (process.env.NODE_ENV === "development") {
 axiosInstance.interceptors.request.use(
   (config) => {
     try {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem("token");
       if (token) {
         config.headers["Authorization"] = `Bearer ${token}`;
       }
@@ -54,13 +54,13 @@ axiosInstance.interceptors.response.use(
     try {
       // Store new token if present in response body
       if (response.data?.token) {
-        localStorage.setItem("authToken", response.data.token);
+        localStorage.setItem("token", response.data.token);
       }
 
       // Store refreshed token from headers
       const refreshedToken = response.headers["x-refreshed-token"];
       if (refreshedToken) {
-        localStorage.setItem("authToken", refreshedToken);
+        localStorage.setItem("token", refreshedToken);
         if (process.env.NODE_ENV === "development") {
           console.log("[Auth] Token refreshed from header");
         }

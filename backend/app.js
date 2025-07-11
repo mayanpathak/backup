@@ -18,6 +18,13 @@ try {
 
 const app = express();
 
+// Set COOP and COEP headers for SharedArrayBuffer support
+app.use((req, res, next) => {
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+    next();
+});
+
 // Allowed origins for CORS
 const allowedOrigins = [
     'http://localhost:5173',

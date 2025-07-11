@@ -361,7 +361,7 @@
 // export default Login;
 import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { UserContext } from '../context/user.context';
+import { useUser } from '../context/user.context'; // Correctly import useUser
 import axios from '../config/axios';
 import { motion } from 'framer-motion';
 import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react';
@@ -371,40 +371,116 @@ const Login = () => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { setUser, clearUser } = useContext(UserContext);
+    const [fieldErrors, setFieldErrors] = useState({});
+    const { login, clearUser } = useUser(); // Use the new login function from useUser
     const navigate = useNavigate();
 
-    async function submitHandler(e) {
+    // Client-side validation
+    const validateForm = () => {
+        const errors = {};
+        
+        if (!email.trim()) {
+            errors.email = 'Email is required';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            errors.email = 'Please enter a valid email address';
+        }
+        
+        if (!password.trim()) {
+            errors.password = 'Password is required';
+        } else if (password.length < 6) {
+            errors.password = 'Password must be at least 6 characters';
+        }
+        
+        setFieldErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
+
+    // Clear field errors when user starts typing
+    const handleEmailChange = (e) => {
+        setEmail(e.target.value);
+        if (fieldErrors.email) {
+            setFieldErrors(prev => ({ ...prev, email: '' }));
+        }
+        if (error) setError('');
+    };
+
+    const handlePasswordChange = (e) => {
+        setPassword(e.target.value);
+        if (fieldErrors.password) {
+            setFieldErrors(prev => ({ ...prev, password: '' }));
+        }
+        if (error) setError('');
+    };
+
+    function submitHandler(e) {
         e.preventDefault();
+        
+        // Clear previous errors
         setError('');
+        setFieldErrors({});
+        
+        // Validate form
+        if (!validateForm()) {
+            console.log('Form validation failed');
+            return;
+        }
+
+        // Clear any existing user data
         clearUser();
         setIsLoading(true);
+        
+        console.log('Attempting login for:', email);
 
-        try {
-            const response = await axios.post('/users/login', {
-                email,
-                password
-            }, {
-                withCredentials: true
-            });
-
-            if (response.data?.user) {
-                setUser(response.data.user);
+        axios.post('/users/login', {
+            email: email.trim(),
+            password
+        }, {
+            withCredentials: true,
+            timeout: 8000 // 8 second timeout for faster response
+        }).then((res) => {
+            console.log('Login successful:', res.data);
+            
+            if (res.data && res.data.user && res.data.token) {
+                // Use the login function from context to store user and token
+                login(res.data.user, res.data.token);
+                console.log('User authenticated, redirecting immediately to home');
+                
+                // Immediate redirect
                 navigate('/home', { replace: true });
             } else {
-                throw new Error('Invalid response from server');
+                setIsLoading(false);
+                console.error('Invalid response structure:', res.data);
+                setError('Login successful but session data is missing. Please try again.');
             }
-        } catch (err) {
-            if (err.code === 'ERR_NETWORK') {
-                setError('Unable to connect to the server. Please check your connection.');
-            } else if (err.response) {
-                setError(err.response.data?.error || 'Login failed. Please check your credentials.');
-            } else {
-                setError('An unexpected error occurred. Please try again.');
-            }
-        } finally {
+        }).catch((err) => {
+            console.error('Login error:', err);
             setIsLoading(false);
-        }
+            clearUser(); // Clear user data on error
+            
+            // Handle different types of errors
+            if (err.code === 'ECONNABORTED') {
+                setError('Request timed out. Please check your connection and try again.');
+            } else if (err.code === 'ERR_NETWORK') {
+                setError('Unable to connect to the server. Please check your internet connection.');
+            } else if (err.response) {
+                // Server responded with error status
+                const status = err.response.status;
+                const errorMessage = err.response.data?.error || err.response.data?.message;
+                
+                if (status === 401) {
+                    setError('Invalid email or password. Please check your credentials.');
+                } else if (status === 429) {
+                    setError('Too many login attempts. Please wait a moment and try again.');
+                } else if (status >= 500) {
+                    setError('Server error. Please try again in a moment.');
+                } else {
+                    setError(errorMessage || 'Login failed. Please try again.');
+                }
+            } else {
+                // Request was made but no response received
+                setError('Unable to reach the server. Please check your connection and try again.');
+            }
+        });
     }
 
     // Animation variants
@@ -484,16 +560,30 @@ const Login = () => {
                                 <Mail size={18} />
                             </span>
                             <input
-                                onChange={(e) => setEmail(e.target.value)}
+                                onChange={handleEmailChange}
                                 value={email}
                                 type="email"
                                 id="email"
-                                className="w-full p-3 pl-10 rounded-lg bg-gray-800/80 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                                className={`w-full p-3 pl-10 rounded-lg bg-gray-800/80 text-white border transition-colors ${
+                                    fieldErrors.email 
+                                        ? 'border-red-500 focus:ring-red-500' 
+                                        : 'border-gray-700 focus:ring-indigo-500'
+                                } focus:outline-none focus:ring-2 focus:border-transparent`}
                                 placeholder="your.email@example.com"
-                                required
                                 disabled={isLoading}
+                                autoComplete="email"
                             />
                         </div>
+                        {fieldErrors.email && (
+                            <motion.p 
+                                className="text-red-400 text-sm mt-1 flex items-center"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                            >
+                                <AlertCircle size={14} className="mr-1" />
+                                {fieldErrors.email}
+                            </motion.p>
+                        )}
                     </motion.div>
 
                     <motion.div className="mb-6" variants={itemVariants}>
@@ -503,21 +593,36 @@ const Login = () => {
                                 <Lock size={18} />
                             </span>
                             <input
-                                onChange={(e) => setPassword(e.target.value)}
+                                onChange={handlePasswordChange}
                                 value={password}
                                 type="password"
                                 id="password"
-                                className="w-full p-3 pl-10 rounded-lg bg-gray-800/80 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                                className={`w-full p-3 pl-10 rounded-lg bg-gray-800/80 text-white border transition-colors ${
+                                    fieldErrors.password 
+                                        ? 'border-red-500 focus:ring-red-500' 
+                                        : 'border-gray-700 focus:ring-indigo-500'
+                                } focus:outline-none focus:ring-2 focus:border-transparent`}
                                 placeholder="••••••••••••"
-                                required
                                 disabled={isLoading}
+                                autoComplete="current-password"
                             />
                         </div>
+                        {fieldErrors.password && (
+                            <motion.p 
+                                className="text-red-400 text-sm mt-1 flex items-center"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                            >
+                                <AlertCircle size={14} className="mr-1" />
+                                {fieldErrors.password}
+                            </motion.p>
+                        )}
                         <div className="flex justify-end mt-2">
                             <motion.button
                                 type="button"
-                                className="text-indigo-400 hover:text-indigo-300 text-sm font-medium"
-                                whileHover={{ scale: 1.05 }}
+                                className="text-indigo-400 hover:text-indigo-300 text-sm font-medium disabled:opacity-50"
+                                whileHover={!isLoading ? { scale: 1.05 } : {}}
+                                disabled={isLoading}
                             >
                                 Forgot password?
                             </motion.button>
@@ -526,10 +631,14 @@ const Login = () => {
 
                     <motion.button
                         type="submit"
-                        className="w-full p-3 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium shadow-lg shadow-indigo-500/30 flex items-center justify-center disabled:opacity-70"
+                        className={`w-full p-3 rounded-lg font-medium shadow-lg shadow-indigo-500/30 flex items-center justify-center transition-opacity ${
+                            isLoading 
+                                ? 'bg-gray-600 cursor-not-allowed opacity-75' 
+                                : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'
+                        } text-white`}
                         variants={buttonVariants}
-                        whileHover={!isLoading ? "hover" : ""}
-                        whileTap={!isLoading ? "tap" : ""}
+                        whileHover={!isLoading ? "hover" : {}}
+                        whileTap={!isLoading ? "tap" : {}}
                         disabled={isLoading}
                     >
                         {isLoading ? (
@@ -554,8 +663,8 @@ const Login = () => {
                     <div className="flex justify-center space-x-4">
                         <motion.div 
                             className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center border border-gray-700 cursor-pointer"
-                            whileHover={{ scale: 1.1, backgroundColor: '#1f2937' }}
-                            whileTap={{ scale: 0.95 }}
+                            whileHover={!isLoading ? { scale: 1.1, backgroundColor: '#1f2937' } : {}}
+                            whileTap={!isLoading ? { scale: 0.95 } : {}}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
                                 <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
@@ -563,8 +672,8 @@ const Login = () => {
                         </motion.div>
                         <motion.div 
                             className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center border border-gray-700 cursor-pointer"
-                            whileHover={{ scale: 1.1, backgroundColor: '#1f2937' }}
-                            whileTap={{ scale: 0.95 }}
+                            whileHover={!isLoading ? { scale: 1.1, backgroundColor: '#1f2937' } : {}}
+                            whileTap={!isLoading ? { scale: 0.95 } : {}}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
                                 <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
@@ -572,8 +681,8 @@ const Login = () => {
                         </motion.div>
                         <motion.div 
                             className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center border border-gray-700 cursor-pointer"
-                            whileHover={{ scale: 1.1, backgroundColor: '#1f2937' }}
-                            whileTap={{ scale: 0.95 }}
+                            whileHover={!isLoading ? { scale: 1.1, backgroundColor: '#1f2937' } : {}}
+                            whileTap={!isLoading ? { scale: 0.95 } : {}}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
                                 <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path>
@@ -590,10 +699,17 @@ const Login = () => {
                     <p className="text-gray-400">
                         Don't have an account?{' '}
                         <motion.span
-                            whileHover={{ color: '#a5b4fc' }}
+                            whileHover={!isLoading ? { color: '#a5b4fc' } : {}}
                             transition={{ duration: 0.2 }}
                         >
-                            <Link to="/register" className="text-indigo-400 hover:text-indigo-300 font-medium">
+                            <Link 
+                                to="/register" 
+                                className={`font-medium ${
+                                    isLoading 
+                                        ? 'text-gray-500 pointer-events-none' 
+                                        : 'text-indigo-400 hover:text-indigo-300'
+                                }`}
+                            >
                                 Sign up
                             </Link>
                         </motion.span>
