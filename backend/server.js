@@ -20,6 +20,8 @@ const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:5174',
     'https://code-collab-mny8.vercel.app',
+    'https://backup-alpha.vercel.app',
+
     // Add any other frontend domains here
 ];
 
