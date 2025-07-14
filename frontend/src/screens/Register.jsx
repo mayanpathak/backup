@@ -48,7 +48,7 @@ const Register = () => {
                     setError(err.response.data?.error || err.response.data?.message || 'Registration failed. Please try again.');
                 }
             } else {
-                setError('An unexpected error occurred during registration. Please try again.');
+                setError('user registered  if not redirected plzz try to log in ');
             }
             clearUser(); // Clear user data on any error
         }
