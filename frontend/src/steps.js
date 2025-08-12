@@ -1,4 +1,4 @@
-import { Step, StepType } from './types';
+import { Step, StepType } from './types/index.js';
 
 /*
  * Parse input XML and convert it into steps.

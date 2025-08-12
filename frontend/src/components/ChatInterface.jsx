@@ -6,7 +6,7 @@ import hljs from 'highlight.js';
 import { parseXml } from '../steps';
 import { sendAIMessage, sendMessage, searchMessages as socketSearchMessages } from '../config/socket';
 import axios from 'axios';
-import { API_URL } from '../config';
+import { API_URL } from '../config/config.js';
 
 // Syntax highlighter component for code blocks in messages
 function SyntaxHighlightedCode(props) {

@@ -1,7 +1,5 @@
 @import "tailwindcss";
 
-@config "./tailwind.config.js";
-
 * {
   margin: 0%;
   padding: 0%;

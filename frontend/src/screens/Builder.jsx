@@ -8,7 +8,7 @@ import { CodeEditor } from '../components/CodeEditor';
 import { PreviewFrame } from '../components/PreviewFrame';
 import { Step, FileItem, StepType } from '../types/index';
 import axios from 'axios';
-import { API_URL } from '../config';
+import { API_URL } from '../config/config.js';
 import { parseXml } from '../steps';
 import { useWebContainer } from '../hooks/useWebContainer';
 import { Loader } from '../components/Loader';

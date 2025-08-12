@@ -1,5 +1,5 @@
 import axios from "axios";
-import { API_URL } from "./config";
+import { API_URL } from "./config.js";
 
 // Validate base URL at load time
 if (!API_URL || typeof API_URL !== "string") {
