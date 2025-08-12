@@ -151,6 +151,7 @@ import Register from '../screens/Register';
 import Home from '../screens/Home';
 import Project from '../screens/Project';
 import LandingPage from '../screens/LandingPage';
+import { Builder } from '../screens/Builder';
 
 // Auth wrapper for protected routes
 import UserAuth from '../auth/UserAuth';
@@ -179,6 +180,14 @@ const AppRoutes = () => {
                 element={
                     <UserAuth>
                         <Project />
+                    </UserAuth>
+                }
+            />
+            <Route
+                path="/builder"
+                element={
+                    <UserAuth>
+                        <Builder />
                     </UserAuth>
                 }
             />

@@ -1,294 +1,206 @@
-import io from 'socket.io-client';
-import { API_URL } from './config';
+import { io } from 'socket.io-client';
 
 let socket = null;
-let reconnectTimer = null;
+const messageHandlers = new Map();
 
-/**
- * Initialize a socket connection for a specific project
- * @param {string} projectId - The ID of the project to connect to
- * @returns {object} - The socket instance
- */
+// Socket configuration with Redis support and 24-hour message retention
 export const initializeSocket = (projectId) => {
-    try {
-        if (socket) {
-            // If we have a previous connection, clean it up first
-            cleanupSocket();
-        }
+  if (socket) {
+    socket.disconnect();
+  }
 
-        console.log(`Initializing socket connection to ${API_URL} for project ${projectId}`);
+  try {
+    // Initialize socket connection to your backend
+    socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000', {
+      transports: ['websocket', 'polling'],
+      auth: {
+        token: localStorage.getItem('token'),
+        projectId: projectId
+      },
+      query: {
+        projectId: projectId
+      }
+    });
 
-        // Get auth token from localStorage
-        const authToken = localStorage.getItem('token');
-        
-        // Debug logging
-        console.log('Socket connection with token?', !!authToken);
-        
-        // Create socket connection with improved auth options
-        socket = io(API_URL, {
-            withCredentials: true, // Enable sending cookies
-            auth: { token: authToken }, // Always send token in auth object
-            query: {
-                projectId: projectId
-            },
-            reconnection: true,
-            reconnectionAttempts: 10,
-            reconnectionDelay: 2000,
-            timeout: 20000,
-            forceNew: true, // Force a new connection
-            transports: ['websocket', 'polling'], // Try WebSocket first, then fallback to polling
-            extraHeaders: authToken ? {
-                'Authorization': `Bearer ${authToken}`
-            } : {}
-        });
+    // Connection event handlers
+    socket.on('connect', () => {
+      console.log('Socket connected:', socket.id);
+      // Join project room for real-time collaboration
+      socket.emit('join-project', { projectId });
+    });
 
-        // Set up connection event handlers
-        socket.on('connect', () => {
-            console.log('Socket connected successfully', socket.id);
-            if (reconnectTimer) {
-                clearTimeout(reconnectTimer);
-                reconnectTimer = null;
-            }
-            window.socket = socket;
-            
-            // Dispatch connection event for UI components
-            window.dispatchEvent(new CustomEvent('socket_connected', { 
-                detail: { socketId: socket.id } 
-            }));
-        });
+    socket.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason);
+    });
 
-        socket.on('connect_error', (error) => {
-            console.error('Socket connection error:', error.message);
-            
-            // Special handling for auth errors
-            if (error.message.includes('authentication') || error.message.includes('unauthorized')) {
-                console.warn('Authentication error in socket connection. Trying to refresh auth...');
-                
-                // Attempt to refresh authentication if this looks like an auth error
-                // This will trigger the UserContext to attempt re-auth via axios interceptor
-                window.dispatchEvent(new CustomEvent('auth_refresh_needed'));
-                
-                // Try to reconnect using token from localStorage in case cookie is not working
-                const latestToken = localStorage.getItem('token');
-                if (latestToken) {
-                    socket.auth = { token: latestToken };
-                    socket.io.opts.extraHeaders = {
-                        'Authorization': `Bearer ${latestToken}`
-                    };
-                }
-                
-                // Schedule a reconnection attempt
-                if (!reconnectTimer) {
-                    reconnectTimer = setTimeout(() => {
-                        console.log('Attempting to reconnect socket after auth refresh...');
-                        if (socket) {
-                            socket.connect();
-                        }
-                        reconnectTimer = null;
-                    }, 5000); // Give time for auth refresh to complete
-                }
-            }
-            
-            // Show error in UI if needed
-            window.dispatchEvent(new CustomEvent('socket_error', { 
-                detail: { 
-                    type: 'CONNECT_ERROR',
-                    message: 'Failed to connect to the server. Please check if you are logged in.' 
-                } 
-            }));
-        });
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+      // Emit custom error event for UI handling
+      window.dispatchEvent(new CustomEvent('socket_error', { 
+        detail: { message: error.message || 'Connection failed' } 
+      }));
+    });
 
-        socket.on('disconnect', (reason) => {
-            console.log('Socket disconnected:', reason);
-            
-            window.dispatchEvent(new CustomEvent('socket_disconnected', { 
-                detail: { reason } 
-            }));
-            
-            if (reason === 'io server disconnect' || reason === 'transport close') {
-                // Server disconnected us, try to reconnect after a short delay
-                if (!reconnectTimer) {
-                    reconnectTimer = setTimeout(() => {
-                        console.log('Attempting to reconnect after disconnect...');
-                        // Try to reconnect using token from localStorage
-                        const latestToken = localStorage.getItem('token');
-                        if (latestToken) {
-                            socket.auth = { token: latestToken };
-                            socket.io.opts.extraHeaders = {
-                                'Authorization': `Bearer ${latestToken}`
-                            };
-                        }
-                        socket.connect();
-                        reconnectTimer = null;
-                    }, 3000);
-                }
-            }
-        });
+    // Authentication error handling
+    socket.on('auth_error', (error) => {
+      console.error('Socket authentication error:', error);
+      window.dispatchEvent(new CustomEvent('socket_error', { 
+        detail: { message: 'Authentication error: ' + error.message } 
+      }));
+    });
 
-        socket.on('error', (error) => {
-            console.error('Socket error:', error);
-            
-            // Show error in UI
-            window.dispatchEvent(new CustomEvent('socket_error', { 
-                detail: typeof error === 'object' ? error : { message: error } 
-            }));
-        });
+    // Store socket reference globally for cleanup
+    window.socket = socket;
 
-        // Listen for auth events
-        socket.on('authentication_failed', (details) => {
-            console.error('Socket authentication failed:', details);
-            
-            // Refresh auth or redirect to login
-            window.dispatchEvent(new CustomEvent('auth_expired', { 
-                detail: { message: 'Your session has expired. Please log in again.' } 
-            }));
-        });
-
-        window.socket = socket;
-        return socket;
-    } catch (error) {
-        console.error('Error initializing socket:', error);
-        return null;
-    }
+    return socket;
+  } catch (error) {
+    console.error('Failed to initialize socket:', error);
+    window.dispatchEvent(new CustomEvent('socket_error', { 
+      detail: { message: 'Failed to initialize socket connection' } 
+    }));
+    return null;
+  }
 };
 
-/**
- * Send a message via the socket connection
- * @param {string} event - The event name to emit
- * @param {object} data - The data to send
- * @returns {boolean} - Whether the message was sent successfully
- */
+// Send message with Redis storage (24-hour TTL)
 export const sendMessage = (event, data) => {
-    try {
-        if (!socket) {
-            console.error('Cannot send message: Socket not initialized');
-            return false;
-        }
-
-        if (!socket.connected) {
-            console.warn('Socket not connected when trying to send message. Reconnecting...');
-            
-            // Try to refresh auth token before reconnecting
-            const latestToken = localStorage.getItem('token');
-            if (latestToken) {
-                socket.auth = { token: latestToken };
-                socket.io.opts.extraHeaders = {
-                    'Authorization': `Bearer ${latestToken}`
-                };
-            }
-            
-            socket.connect();
-            
-            // Queue message to be sent after reconnection
-            socket.once('connect', () => {
-                console.log(`Sending delayed ${event} after reconnection`);
-                socket.emit(event, data);
-            });
-            
-            return false;
-        }
-
-        // Send the message
-        socket.emit(event, data);
-        return true;
-    } catch (error) {
-        console.error('Error sending message:', error);
-        return false;
-    }
+  if (socket && socket.connected) {
+    // Add timestamp and message ID for Redis storage
+    const messageData = {
+      ...data,
+      timestamp: new Date().toISOString(),
+      messageId: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+      ttl: 24 * 60 * 60 // 24 hours in seconds
+    };
+    
+    socket.emit(event, messageData);
+  } else {
+    console.warn('Socket not connected, message not sent:', event, data);
+  }
 };
 
-/**
- * Set up a callback for receiving messages of a specific event type
- * @param {string} event - The event name to listen for
- * @param {function} callback - The callback function to execute when the event is received
- */
-export const receiveMessage = (event, callback) => {
-    try {
-        if (!socket) {
-            console.error('Cannot receive messages: Socket not initialized');
-            return;
-        }
-
-        // Remove any existing listeners for this event
-        socket.off(event);
-        
-        // Add the new listener with error handling
-        socket.on(event, (data) => {
-            try {
-                callback(data);
-            } catch (error) {
-                console.error(`Error in ${event} callback:`, error);
-            }
-        });
-    } catch (error) {
-        console.error('Error setting up message receiver:', error);
-    }
+// Receive message handler
+export const receiveMessage = (event, handler) => {
+  if (socket) {
+    socket.on(event, handler);
+    messageHandlers.set(event, handler);
+  }
 };
 
-/**
- * Refresh socket authentication with updated token
- * @param {string} newToken - The new authentication token
- */
-export const refreshSocketAuth = (newToken) => {
-    try {
-        if (!socket) {
-            console.warn('Cannot refresh auth: Socket not initialized');
-            return;
-        }
-        
-        if (newToken) {
-            // Store token for reconnection scenarios
-            localStorage.setItem('token', newToken);
-            
-            // Update socket auth
-            socket.auth = { token: newToken };
-            if (socket.io && socket.io.opts) {
-                socket.io.opts.extraHeaders = {
-                    'Authorization': `Bearer ${newToken}`
-                };
-            }
-            
-            // If socket is already connected, disconnect and reconnect with new auth
-            if (socket.connected) {
-                console.log('Reconnecting socket with new authentication token');
-                socket.disconnect().connect();
-            } else {
-                console.log('Socket will use new token on next connection attempt');
-                socket.connect();
-            }
-        }
-    } catch (error) {
-        console.error('Error refreshing socket authentication:', error);
-    }
+// Remove message handler
+export const removeMessageHandler = (event) => {
+  if (socket) {
+    socket.off(event);
+    messageHandlers.delete(event);
+  }
 };
 
-/**
- * Clean up the socket connection and event listeners
- */
-export const cleanupSocket = () => {
-    try {
-        if (reconnectTimer) {
-            clearTimeout(reconnectTimer);
-            reconnectTimer = null;
-        }
-        
-        if (socket) {
-            console.log('Cleaning up socket connection');
-            // Remove all listeners and disconnect
-            socket.removeAllListeners();
-            socket.disconnect();
-            socket = null;
-            window.socket = null;
-        }
-    } catch (error) {
-        console.error('Error cleaning up socket:', error);
-    }
+// Get socket instance
+export const getSocket = () => socket;
+
+// Check if socket is connected
+export const isSocketConnected = () => {
+  return socket && socket.connected;
 };
 
-export default { 
-    initializeSocket, 
-    sendMessage, 
-    receiveMessage, 
-    refreshSocketAuth, 
-    cleanupSocket 
+// Reconnect socket
+export const reconnectSocket = () => {
+  if (socket) {
+    socket.connect();
+  }
+};
+
+// Disconnect socket
+export const disconnectSocket = () => {
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+    messageHandlers.clear();
+    if (window.socket) {
+      delete window.socket;
+    }
+  }
+};
+
+// Handle AI message processing
+export const sendAIMessage = (message, projectId) => {
+  if (socket && socket.connected) {
+    const aiMessageData = {
+      message: message,
+      projectId: projectId,
+      sender: {
+        _id: 'ai-request',
+        email: 'AI Assistant'
+      },
+      timestamp: new Date().toISOString(),
+      messageId: Date.now() + '-ai-' + Math.random().toString(36).substr(2, 9),
+      ttl: 24 * 60 * 60 // 24 hours
+    };
+    
+    socket.emit('ai-message', aiMessageData);
+  }
+};
+
+// Load cached messages from Redis
+export const loadCachedMessages = (projectId, offset = 0, limit = 50) => {
+  if (socket && socket.connected) {
+    socket.emit('load-messages', { 
+      projectId, 
+      offset, 
+      limit 
+    });
+  }
+};
+
+// Search messages in Redis
+export const searchMessages = (projectId, searchTerm) => {
+  if (socket && socket.connected) {
+    socket.emit('search-messages', { 
+      projectId, 
+      searchTerm 
+    });
+  }
+};
+
+// Get message count from Redis
+export const getMessageCount = (projectId) => {
+  if (socket && socket.connected) {
+    socket.emit('get-message-count', { projectId });
+  }
+};
+
+// Export all socket events for easy reference
+export const SOCKET_EVENTS = {
+  // Connection events
+  CONNECT: 'connect',
+  DISCONNECT: 'disconnect',
+  CONNECT_ERROR: 'connect_error',
+  AUTH_ERROR: 'auth_error',
+  
+  // Project events
+  JOIN_PROJECT: 'join-project',
+  LEAVE_PROJECT: 'leave-project',
+  PROJECT_UPDATE: 'project-update',
+  
+  // Message events
+  PROJECT_MESSAGE: 'project-message',
+  AI_MESSAGE: 'ai-message',
+  LOAD_MESSAGES: 'load-messages',
+  SEARCH_MESSAGES: 'search-messages',
+  SEARCH_RESULTS: 'search-results',
+  MORE_MESSAGES_LOADED: 'more-messages-loaded',
+  GET_MESSAGE_COUNT: 'get-message-count',
+  MESSAGE_COUNT: 'message-count',
+  
+  // File events
+  FILE_UPDATE: 'file-update',
+  FILE_TREE_UPDATE: 'file-tree-update',
+  
+  // User events
+  USER_JOINED: 'user-joined',
+  USER_LEFT: 'user-left',
+  USER_TYPING: 'user-typing',
+  
+  // Error events
+  ERROR: 'error'
 };

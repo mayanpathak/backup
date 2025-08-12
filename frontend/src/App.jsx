@@ -17,14 +17,17 @@ import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
 import { UserProvider } from './context/user.context';
+import { AppProvider } from './context/AppContext';
 
 const App = () => {
   return (
     <React.StrictMode>
       <UserProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
+        <AppProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </AppProvider>
       </UserProvider>
     </React.StrictMode>
   );

@@ -1,4 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { config } from '../config/environment.js';
 
 // Helper function to create useful code snippets for common file types
 function generateBasicCodeForFile(filename, prompt) {
@@ -321,7 +322,7 @@ main();`
     }
 }
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_KEY);
+const genAI = new GoogleGenerativeAI(config.geminiApiKey);
 const model = genAI.getGenerativeModel({
     model: "gemini-1.5-flash",
     generationConfig: {
@@ -654,3 +655,31 @@ function createBasicFileTreeFromPrompt(prompt) {
     
     return fileTree;
 }
+
+// New function for the Wilder project functionality
+export const callGemini = async (messages, maxTokens) => {
+    try {
+        const model = genAI.getGenerativeModel({ 
+            model: config.geminiModel,
+            generationConfig: {
+                maxOutputTokens: maxTokens,
+                temperature: 0.7,
+            }
+        });
+
+        const chat = model.startChat({
+            history: messages.slice(0, -1).map((msg) => ({
+                role: msg.role,
+                parts: [{ text: msg.content }],
+            })),
+        });
+
+        const userMessage = messages[messages.length - 1].content;
+        const result = await chat.sendMessage(userMessage);
+        const response = await result.response;
+        return response.text();
+    } catch (error) {
+        console.error('Gemini API error:', error);
+        throw new Error(`Failed to generate response: ${error.message}`);
+    }
+};
