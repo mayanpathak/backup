@@ -7,6 +7,11 @@ import Markdown from 'markdown-to-jsx'
 import hljs from 'highlight.js'
 import { getWebContainer } from '../config/webContainer'
 import { motion, AnimatePresence } from 'framer-motion'
+import { ChatInterface } from '../components/ChatInterface'
+import { WilderFileExplorer as FileExplorer } from '../components/FileExplorer'
+import { TabView } from '../components/TabView'
+import { CodeEditor } from '../components/CodeEditor'
+import { PreviewFrame } from '../components/PreviewFrame'
 
 function SyntaxHighlightedCode(props) {
     const ref = useRef(null)
@@ -60,6 +65,125 @@ const Project = () => {
     // New state for WebContainer-related UI
     const [webContainerError, setWebContainerError] = useState(null)
 
+    // New state for integrated features
+    const [activeTab, setActiveTab] = useState('code')
+    const [selectedFile, setSelectedFile] = useState(null)
+    const [files, setFiles] = useState([])
+    const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(true)
+
+    // Helper function to convert file tree object to array format for FileExplorer
+    const convertFileTreeToArray = (fileTree) => {
+        const result = [];
+        
+        const processItem = (key, value, parentPath = '') => {
+            const currentPath = parentPath ? `${parentPath}/${key}` : key;
+            
+            if (value.file) {
+                // It's a file
+                result.push({
+                    name: key,
+                    path: currentPath,
+                    type: 'file',
+                    content: value.file.contents || ''
+                });
+            } else if (value.directory) {
+                // It's a directory
+                const children = [];
+                Object.entries(value.directory).forEach(([childKey, childValue]) => {
+                    const childItems = processItem(childKey, childValue, currentPath);
+                    if (Array.isArray(childItems)) {
+                        children.push(...childItems);
+                    } else {
+                        children.push(childItems);
+                    }
+                });
+                
+                result.push({
+                    name: key,
+                    path: currentPath,
+                    type: 'folder',
+                    children: children
+                });
+            }
+        };
+        
+        Object.entries(fileTree).forEach(([key, value]) => {
+            processItem(key, value);
+        });
+        
+        return result;
+    };
+
+    // Handle AI messages and file generation
+    const handleAIMessage = async (message) => {
+        // Add user message to chat
+        const userMessage = {
+            id: Date.now().toString(),
+            message: `@ai ${message}`,
+            sender: {
+                _id: user?._id || 'current-user',
+                email: user?.email || 'You'
+            },
+            timestamp: new Date().toISOString(),
+            isAI: false
+        };
+        
+        setMessages(prev => [...prev, userMessage]);
+
+        // Send to AI and handle response through existing socket system
+        sendMessage('project-message', userMessage);
+    };
+
+    // Handle regular chat messages
+    const handleRegularMessage = (message) => {
+        const userMessage = {
+            id: Date.now().toString(),
+            message,
+            sender: {
+                _id: user?._id || 'current-user',
+                email: user?.email || 'You'
+            },
+            timestamp: new Date().toISOString(),
+            isAI: false
+        };
+        
+        setMessages(prev => [...prev, userMessage]);
+        sendMessage('project-message', userMessage);
+    };
+
+    // Handle file updates from the code editor
+    const handleFileUpdate = (updatedFile) => {
+        // Update the fileTree format
+        const updatedFileTree = {
+            ...fileTree,
+            [updatedFile.name]: {
+                file: {
+                    contents: updatedFile.content || ''
+                }
+            }
+        };
+        
+        setFileTree(updatedFileTree);
+        setFiles(convertFileTreeToArray(updatedFileTree));
+        
+        // Save to backend
+        saveFileTree(updatedFileTree);
+        
+        // Update webcontainer if available
+        if (webContainer) {
+            try {
+                webContainer.fs.writeFile(
+                    updatedFile.path.startsWith('/')
+                        ? updatedFile.path.substring(1)
+                        : updatedFile.path,
+                    updatedFile.content || ''
+                );
+            } catch (err) {
+                console.error('Error writing file to WebContainer:', err);
+            }
+        }
+    };
+
     const handleUserClick = (id) => {
         setSelectedUserId(prevSelectedUserId => {
             const newSelectedUserId = new Set(prevSelectedUserId);
@@ -72,63 +196,7 @@ const Project = () => {
         });
     }
 
-    const send = () => {
-        if (!message.trim()) return;
-        
-        const messageData = {
-            message,
-            sender: user
-        };
-        
-        setMessages(prevMessages => [...prevMessages, messageData]);
-        sendMessage('project-message', messageData);
-        setMessage("");
-        
-        setTimeout(() => {
-            scrollToBottom();
-        }, 100);
-    };
 
-    // Search messages function
-    const searchMessages = () => {
-        if (!searchTerm.trim()) return;
-        
-        setIsSearching(true);
-        setSearchResults([]);
-        setMessageError(null);
-        
-        sendMessage('search-messages', { searchTerm: searchTerm.trim() });
-    };
-
-    // Load more messages
-    const loadMoreMessages = () => {
-        if (isLoadingMore || loadedMessageCount >= totalMessageCount) return;
-        
-        setIsLoadingMore(true);
-        sendMessage('load-more-messages', { 
-            offset: loadedMessageCount, 
-            limit: 20 
-        });
-    };
-
-    // Toggle search mode
-    const toggleSearchMode = () => {
-        setIsSearchMode(!isSearchMode);
-        if (isSearchMode) {
-            // Exiting search mode
-            setSearchResults([]);
-            setSearchTerm('');
-        }
-    };
-
-    // Format timestamp
-    const formatTimestamp = (timestamp) => {
-        if (!timestamp) return '';
-        
-        const date = new Date(timestamp);
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + 
-               ' ' + date.toLocaleDateString();
-    };
 
     function WriteAiMessage(message) {
         const messageObject = JSON.parse(message)
@@ -287,11 +355,11 @@ const Project = () => {
                         const message = JSON.parse(data.message);
                         console.log("AI message:", message);
 
-                        webContainer?.mount(message.fileTree);
-
-                        if (message.fileTree) {
-                            setFileTree(message.fileTree || {})
-                    }
+                        if (webContainer && message.fileTree) {
+                            webContainer.mount(message.fileTree);
+                            setFileTree(message.fileTree || {});
+                            setFiles(convertFileTreeToArray(message.fileTree));
+                        }
                 } catch (error) {
                         console.error("Error parsing AI message:", error);
                     }
@@ -335,6 +403,13 @@ const Project = () => {
         scrollToBottom()
     }, [messages])
 
+    // Convert fileTree to files array when fileTree changes
+    useEffect(() => {
+        if (Object.keys(fileTree).length > 0) {
+            setFiles(convertFileTreeToArray(fileTree));
+        }
+    }, [fileTree])
+
     function saveFileTree(ft) {
         axios.put('/projects/update-file-tree', {
             projectId: project._id,
@@ -352,548 +427,191 @@ const Project = () => {
         }
     }
 
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            send();
-        }
-    }
-    
-    const runProject = async () => {
-        if (!webContainer) {
-            setWebContainerError("WebContainer is not available. This may be due to your browser environment or deployment restrictions.");
-            return;
-        }
-        
-        try {
-            setIsLoading(true);
-            await webContainer.mount(fileTree);
 
-            const installProcess = await webContainer.spawn("npm", ["install"]);
-            installProcess.output.pipeTo(new WritableStream({
-                write(chunk) {
-                    console.log(chunk)
-                }
-            }));
-
-            if (runProcess) {
-                runProcess.kill();
-            }
-
-            let tempRunProcess = await webContainer.spawn("npm", ["start"]);
-            tempRunProcess.output.pipeTo(new WritableStream({
-                write(chunk) {
-                    console.log(chunk)
-                }
-            }));
-
-            setRunProcess(tempRunProcess);
-
-            webContainer.on('server-ready', (port, url) => {
-                console.log(port, url);
-                setIframeUrl(url);
-                setIsLoading(false);
-            });
-        } catch (error) {
-            console.error("Error running project:", error);
-            setIsLoading(false);
-        }
-    };
 
     return (
-        <main className='h-screen w-screen flex bg-slate-50 font-sans'>
-            <motion.section 
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3 }}
-                className="left relative flex flex-col h-screen min-w-96 bg-slate-100 border-r border-slate-200 shadow-md z-20">
-                <header className='flex justify-between items-center p-3 px-4 w-full bg-white border-b border-slate-200 absolute z-10 top-0'>
-                    <div className="flex gap-2">
+        <main className='h-screen w-screen flex bg-gray-950 font-sans'>
+            {/* Fixed Chat Sidebar */}
+            <AnimatePresence>
+                {isChatSidebarOpen && (
+                    <motion.section 
+                        initial={{ opacity: 0, x: -300 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -300 }}
+                        transition={{ duration: 0.3 }}
+                        className="fixed left-0 top-0 h-screen w-80 bg-gray-900 border-r border-gray-800 shadow-xl z-50 flex flex-col"
+                    >
+                        {/* Chat Sidebar Header */}
+                        <header className='flex justify-between items-center p-4 bg-gray-800 border-b border-gray-700'>
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                                    <i className="ri-chat-3-line text-white text-sm"></i>
+                                </div>
+                                <div>
+                                    <h2 className="text-white font-semibold text-sm">{project?.name || 'Project Chat'}</h2>
+                                    <p className="text-gray-400 text-xs">AI & Collaborators</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    className='p-2 rounded-lg hover:bg-gray-700 transition-colors text-gray-400 hover:text-white' 
+                                    onClick={() => setIsModalOpen(true)}
+                                    title="Add collaborators"
+                                >
+                                    <i className="ri-user-add-line text-sm"></i>
+                                </button>
+                                <button 
+                                    onClick={() => setIsChatSidebarOpen(false)} 
+                                    className='p-2 rounded-lg hover:bg-gray-700 transition-colors text-gray-400 hover:text-white'
+                                    title="Close chat"
+                                >
+                                    <i className="ri-close-line text-sm"></i>
+                                </button>
+                            </div>
+                        </header>
+                        
+                        {/* Chat Interface */}
+                        <div className="flex-1 overflow-hidden">
+                            <ChatInterface
+                                messages={messages}
+                                onAIMessage={handleAIMessage}
+                                onRegularMessage={handleRegularMessage}
+                                loading={isLoading}
+                                projectId={project?._id}
+                                currentUser={user}
+                                searchResults={searchResults}
+                                isSearching={isSearching}
+                                isLoadingMore={isLoadingMore}
+                                totalMessageCount={totalMessageCount}
+                                loadedMessageCount={loadedMessageCount}
+                                messageError={messageError}
+                                isSearchMode={isSearchMode}
+                                onToggleSearchMode={() => setIsSearchMode(!isSearchMode)}
+                                onLoadMoreMessages={() => {
+                                    if (isLoadingMore || loadedMessageCount >= totalMessageCount) return;
+                                    setIsLoadingMore(true);
+                                    sendMessage('load-more-messages', { 
+                                        offset: loadedMessageCount, 
+                                        limit: 20 
+                                    });
+                                }}
+                            />
+                        </div>
+                    </motion.section>
+                )}
+            </AnimatePresence>
+
+            {/* Main Content Area */}
+            <div className={`flex-1 flex flex-col transition-all duration-300 ${isChatSidebarOpen ? 'ml-80' : 'ml-0'}`}>
+                {/* Top Header */}
+                <header className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        {!isChatSidebarOpen && (
+                            <button
+                                onClick={() => setIsChatSidebarOpen(true)}
+                                className="p-2 rounded-lg hover:bg-gray-800 transition-colors text-gray-400 hover:text-white"
+                                title="Open chat"
+                            >
+                                <i className="ri-chat-3-line"></i>
+                            </button>
+                        )}
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                                <i className="ri-code-line text-white text-sm"></i>
+                            </div>
+                            <div>
+                                <h1 className="text-white font-semibold">{project?.name || 'Untitled Project'}</h1>
+                                <p className="text-gray-400 text-sm">Collaborative Development</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
                         <button 
-                            className='flex gap-2 items-center text-slate-700 hover:text-slate-900 transition-colors py-1 px-3 rounded-md hover:bg-slate-100' 
-                            onClick={() => setIsModalOpen(true)}
-                        >
-                            <i className="ri-user-add-line text-blue-500"></i>
-                            <p className="font-medium">Add collaborator</p>
-                        </button>
-                        <button 
-                            className='flex gap-2 items-center text-red-600 hover:text-red-700 transition-colors py-1 px-3 rounded-md hover:bg-red-50' 
+                            className='flex gap-2 items-center text-red-400 hover:text-red-300 transition-colors py-2 px-3 rounded-lg hover:bg-red-500/10' 
                             onClick={() => setIsDeleteConfirmOpen(true)}
                         >
                             <i className="ri-delete-bin-line"></i>
-                            <p className="font-medium">Delete project</p>
+                            <span className="text-sm">Delete</span>
                         </button>
                         <button 
-                            className='flex gap-2 items-center text-slate-700 hover:text-slate-900 transition-colors py-1 px-3 rounded-md hover:bg-slate-100' 
-                            onClick={toggleSearchMode}
+                            onClick={() => navigate('/home')}
+                            className='flex gap-2 items-center text-gray-400 hover:text-white transition-colors py-2 px-3 rounded-lg hover:bg-gray-800'
                         >
-                            <i className={`${isSearchMode ? 'ri-close-line text-red-500' : 'ri-search-line text-blue-500'}`}></i>
-                            <p className="font-medium">{isSearchMode ? 'Exit Search' : 'Search Messages'}</p>
+                            <i className="ri-home-line"></i>
+                            <span className="text-sm">Home</span>
                         </button>
                     </div>
-                    <button 
-                        onClick={() => setIsSidePanelOpen(!isSidePanelOpen)} 
-                        className='p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-600'
-                    >
-                        <i className="ri-group-line text-lg"></i>
-                    </button>
                 </header>
-                <div className="conversation-area pt-16 pb-16 flex-grow flex flex-col h-full relative">
-                    {messageError && (
-                        <div className="bg-red-100 border border-red-300 text-red-700 p-3 m-3 rounded-md">
-                            <p className="text-sm font-medium flex items-center">
-                                <i className="ri-error-warning-line mr-2"></i>
-                                {messageError}
-                            </p>
-                            <button 
-                                className="text-xs text-red-600 mt-1 hover:underline"
-                                onClick={() => setMessageError(null)}
-                            >
-                                Dismiss
-                            </button>
+
+                {/* Content Area */}
+                <div className="flex-1 flex overflow-hidden">
+                    {/* File Explorer */}
+                    <div className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
+                        <div className="p-4 border-b border-gray-800">
+                            <h3 className="text-white font-medium">Files</h3>
                         </div>
-                    )}
-
-                    {isSearchMode && (
-                        <div className="p-3 border-b border-slate-200">
-                            <div className="flex gap-2">
-                                <div className="flex-grow flex items-center bg-white rounded-lg border border-slate-300 overflow-hidden focus-within:ring-2 focus-within:ring-blue-300 focus-within:border-blue-400 transition-all">
-                                    <input
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                searchMessages();
-                                            }
-                                        }}
-                                        className='p-2 px-3 border-none outline-none flex-grow text-slate-700 placeholder-slate-400' 
-                                        type="text" 
-                                        placeholder='Search messages...' 
-                                    />
-                                    {searchTerm && (
-                                        <button
-                                            onClick={() => setSearchTerm('')}
-                                            className='px-2 text-slate-400'
-                                        >
-                                            <i className="ri-close-line"></i>
-                                        </button>
-                                    )}
-                                </div>
-                                <button
-                                    onClick={searchMessages}
-                                    disabled={!searchTerm.trim() || isSearching}
-                                    className={`px-3 ${!searchTerm.trim() || isSearching ? 'bg-slate-300' : 'bg-blue-500 hover:bg-blue-600'} text-white rounded-lg transition-colors flex items-center`}
-                                >
-                                    {isSearching ? (
-                                        <i className="ri-loader-4-line animate-spin"></i>
-                                    ) : (
-                                        <i className="ri-search-line"></i>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {!isSearchMode && loadedMessageCount < totalMessageCount && (
-                        <div className="flex justify-center p-2">
-                            <button
-                                onClick={loadMoreMessages}
-                                disabled={isLoadingMore}
-                                className="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 p-2 px-4 rounded-md text-sm transition-colors flex items-center gap-1"
-                            >
-                                {isLoadingMore ? (
-                                    <>
-                                        <i className="ri-loader-4-line animate-spin"></i>
-                                        Loading...
-                                    </>
-                                ) : (
-                                    <>
-                                        <i className="ri-history-line"></i>
-                                        Load earlier messages ({totalMessageCount - loadedMessageCount} more)
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    )}
-
-                    {isSearchMode && searchTerm && searchResults.length === 0 && !isSearching && (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-3">
-                            <i className="ri-search-line text-5xl opacity-40"></i>
-                            <p>No messages found matching "{searchTerm}"</p>
-                        </div>
-                    )}
-
-                    <div
-                        ref={messageBox}
-                        className="message-box p-3 flex-grow flex flex-col gap-3 overflow-auto max-h-full scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"
-                    >
-                        {!isSearchMode && messages.length === 0 && (
-                            <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-3">
-                                <i className="ri-chat-3-line text-5xl opacity-40"></i>
-                                <p>Start a conversation with your team</p>
-                                </div>
-                        )}
-                        
-                        {!isSearchMode ? (
-                            messages.map((msg, index) => (
-                                <motion.div 
-                                    key={index} 
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.3 }}
-                                    className={`${msg.sender._id === 'ai' ? 'max-w-4/5' : 'max-w-3/5'} ${user && msg.sender._id === user._id?.toString() ? 'ml-auto' : ''}  message flex flex-col p-2 ${user && msg.sender._id === user._id?.toString() ? 'bg-blue-50 border border-blue-100' : 'bg-white border border-slate-200'} w-fit rounded-lg shadow-sm`}
-                                >
-                                    <small className='text-xs font-medium text-slate-500 mb-1 flex items-center gap-1'>
-                                        {msg.sender._id === 'ai' ? (
-                                            <>
-                                                <i className="ri-robot-line"></i> AI Assistant
-                                            </>
-                                        ) : (
-                                            <>
-                                                <i className="ri-user-line"></i> {msg.sender.email}
-                                            </>
-                                        )}
-                                        {msg.timestamp && (
-                                            <span className="ml-auto text-slate-400 text-xs">
-                                                {formatTimestamp(msg.timestamp)}
-                                            </span>
-                                        )}
-                                            </small>
-                                    <div className={`text-sm ${user && msg.sender._id === user._id?.toString() ? 'text-slate-800' : 'text-slate-700'}`}>
-                                            {msg.sender._id === 'ai' ?
-                                            WriteAiMessage(msg.message) : 
-                                            <p className="whitespace-pre-wrap">{msg.message}</p>
-                                        }
-                                    </div>
-                                </motion.div>
-                            ))
-                        ) : (
-                            searchResults.map((msg, index) => (
-                            <motion.div 
-                                    key={index} 
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.3 }}
-                                    className={`${msg.sender._id === 'ai' ? 'max-w-4/5' : 'max-w-3/5'} message flex flex-col p-2 bg-yellow-50 border border-yellow-200 w-fit rounded-lg shadow-sm`}
-                                >
-                                    <small className='text-xs font-medium text-slate-500 mb-1 flex items-center gap-1'>
-                                        {msg.sender._id === 'ai' ? (
-                                            <>
-                                                <i className="ri-robot-line"></i> AI Assistant
-                                            </>
-                                        ) : (
-                                            <>
-                                                <i className="ri-user-line"></i> {msg.sender.email}
-                                            </>
-                                        )}
-                                        {msg.timestamp && (
-                                            <span className="ml-auto text-slate-400 text-xs">
-                                                {formatTimestamp(msg.timestamp)}
-                                            </span>
-                                        )}
-                                    </small>
-                                    <div className="text-sm text-slate-800">
-                                        {msg.sender._id === 'ai' ? 
-                                            WriteAiMessage(msg.message) : 
-                                            <p className="whitespace-pre-wrap">{msg.message}</p>
-                                        }
-                                </div>
-                            </motion.div>
-                            ))
-                        )}
-                    </div>
-
-                    <div className="inputField w-full flex absolute bottom-0 p-3 bg-white border-t border-slate-200">
-                        <div className="flex w-full bg-white rounded-lg border border-slate-300 overflow-hidden focus-within:ring-2 focus-within:ring-blue-300 focus-within:border-blue-400 transition-all">
-                            <input
-                                value={message}
-                                onChange={(e) => setMessage(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                className='p-3 px-4 border-none outline-none flex-grow text-slate-700 placeholder-slate-400' 
-                                type="text" 
-                                placeholder={isSearchMode ? 'Exit search mode to send messages' : 'Type your message...'} 
-                                disabled={isSearchMode}
+                        <div className="flex-1 overflow-auto">
+                            <FileExplorer 
+                                files={files} 
+                                onFileSelect={setSelectedFile} 
+                                selectedPath={selectedFile?.path}
                             />
-                            <button
-                                onClick={send}
-                                disabled={!message.trim() || isSearchMode}
-                                className={`px-4 ${message.trim() && !isSearchMode ? 'bg-blue-500 hover:bg-blue-600' : 'bg-slate-300'} text-white transition-colors`}>
-                                <i className="ri-send-plane-fill"></i>
-                            </button>
                         </div>
                     </div>
-                </div>
-                
-                <AnimatePresence>
-                    {isSidePanelOpen && (
-                        <motion.div 
-                            initial={{ x: '-100%' }}
-                            animate={{ x: 0 }}
-                            exit={{ x: '-100%' }}
-                            transition={{ type: 'tween', duration: 0.3 }}
-                            className="sidePanel w-full h-full flex flex-col gap-2 bg-white absolute shadow-lg top-0 z-30"
-                        >
-                            <header className='flex justify-between items-center px-4 p-3 bg-slate-50 border-b border-slate-200'>
-                                <h1 className='font-semibold text-lg text-slate-800 flex items-center gap-2'>
-                                    <i className="ri-team-line text-blue-500"></i> Collaborators
-                                </h1>
-                                <button 
-                                    onClick={() => setIsSidePanelOpen(false)} 
-                                    className='p-2 rounded-full hover:bg-slate-200 transition-colors'
-                                >
-                                    <i className="ri-close-line"></i>
-                                </button>
-                            </header>
-                            <div className="users flex flex-col gap-1 p-2 overflow-auto">
-                                {project.users && project.users.length > 0 ? (
-                                    project.users.map((user, index) => (
-                                <motion.div 
-                                            key={index}
-                                            initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                            transition={{ duration: 0.2, delay: index * 0.05 }}
-                                            className="user cursor-pointer hover:bg-slate-100 rounded-md p-3 flex gap-3 items-center"
-                                        >
-                                            <div className='aspect-square rounded-full flex items-center justify-center w-10 h-10 text-white bg-gradient-to-br from-blue-500 to-blue-600 shadow-sm'>
-                                                <span className="text-lg font-medium">{user.email[0].toUpperCase()}</span>
-                                        </div>
-                                        <div>
-                                                <h2 className='font-medium text-slate-800'>{user.email}</h2>
-                                                <p className="text-xs text-slate-500">Online</p>
-                                        </div>
-                                    </motion.div>
-                                    ))
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center h-32 text-slate-400">
-                                        <i className="ri-user-add-line text-3xl mb-2"></i>
-                                        <p>No collaborators yet</p>
-                                    </div>
-                                )}
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </motion.section>
 
-            <motion.section 
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                transition={{ duration: 0.4, delay: 0.2 }}
-                className="right flex-grow h-full flex bg-white">
-                <div className="explorer h-full max-w-64 min-w-52 bg-slate-50 border-r border-slate-200 overflow-auto">
-                    <div className="p-3 border-b border-slate-200">
-                        <h2 className="text-slate-700 font-medium flex items-center gap-2">
-                            <i className="ri-folder-line text-blue-500"></i> Project Files
-                        </h2>
-                    </div>
-                    <div className="file-tree w-full">
-                        {Object.keys(fileTree).length > 0 ? (
-                                Object.keys(fileTree).map((file, index) => (
-                                    <motion.button
-                                        key={index}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ duration: 0.2, delay: index * 0.05 }}
-                                        onClick={() => {
-                                            setCurrentFile(file)
-                                            setOpenFiles([...new Set([...openFiles, file])])
-                                        }}
-                                    className={`tree-element cursor-pointer p-2 px-4 flex items-center gap-2 hover:bg-slate-100 w-full border-b border-slate-100 transition-colors ${currentFile === file ? 'bg-blue-50 text-blue-700' : 'text-slate-700'}`}
-                                >
-                                    <i className={`${file.endsWith('.js') || file.endsWith('.jsx') ? 'ri-javascript-line' : 
-                                                   file.endsWith('.html') ? 'ri-html5-line' : 
-                                                   file.endsWith('.css') ? 'ri-css3-line' : 
-                                                   file.endsWith('.json') ? 'ri-file-code-line' : 'ri-file-line'} 
-                                                   ${currentFile === file ? 'text-blue-500' : 'text-slate-400'}`}></i>
-                                    <p className='font-medium text-sm'>{file}</p>
-                                    </motion.button>
-                                ))
-                        ) : (
-                            <div className="flex flex-col items-center justify-center h-32 text-slate-400 p-4">
-                                <i className="ri-file-add-line text-2xl mb-2"></i>
-                                <p className="text-sm text-center">No files in project yet</p>
-                            </div>
-                            )}
-                    </div>
-                </div>
-
-                <div className="code-editor flex flex-col flex-grow h-full shrink">
-                    <div className="top flex justify-between w-full border-b border-slate-200 bg-slate-50">
-                        <div className="files flex overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
-                                {openFiles.map((file, index) => (
-                                <button
-                                        key={index}
-                                        onClick={() => setCurrentFile(file)}
-                                    className={`open-file cursor-pointer p-2 px-4 flex items-center gap-2 border-r border-slate-200 min-w-max transition-colors
-                                              ${currentFile === file ? 'bg-white border-b-2 border-b-blue-500' : 'hover:bg-slate-100'}`}
-                                >
-                                    <i className={`${file.endsWith('.js') || file.endsWith('.jsx') ? 'ri-javascript-line' : 
-                                                 file.endsWith('.html') ? 'ri-html5-line' : 
-                                                 file.endsWith('.css') ? 'ri-css3-line' : 
-                                                 file.endsWith('.json') ? 'ri-file-code-line' : 'ri-file-line'} 
-                                                 ${currentFile === file ? 'text-blue-500' : 'text-slate-400'}`}></i>
-                                    <p className={`font-medium text-sm ${currentFile === file ? 'text-slate-800' : 'text-slate-600'}`}>{file}</p>
-                                    {currentFile === file && (
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setOpenFiles(openFiles.filter(f => f !== file));
-                                                if (currentFile === file) {
-                                                    setCurrentFile(openFiles.length > 1 ? openFiles.find(f => f !== file) : null);
-                                                }
-                                            }}
-                                            className="ml-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full w-5 h-5 flex items-center justify-center"
-                                        >
-                                            <i className="ri-close-line text-xs"></i>
-                                        </button>
-                                    )}
-                                </button>
-                            ))}
-                        </div>
-
-                        <div className="actions flex gap-2 p-2 pr-4">
+                    {/* Main Editor/Preview Area */}
+                    <div className="flex-1 flex flex-col">
+                        {/* Tab Bar */}
+                        <div className="p-4 border-b border-gray-800 bg-gray-900 flex items-center justify-between">
+                            <TabView activeTab={activeTab} onTabChange={setActiveTab} />
                             {webContainerError && (
-                                <div className="text-xs text-red-500 flex items-center mr-2">
+                                <div className="text-xs text-red-400 flex items-center">
                                     <i className="ri-error-warning-line mr-1"></i>
-                                    {webContainerError}
+                                    WebContainer Error
                                 </div>
                             )}
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={runProject}
-                                disabled={isLoading || Object.keys(fileTree).length === 0 || !webContainer}
-                                className={`py-1 px-4 rounded-md flex items-center gap-2 transition-all shadow-sm
-                                         ${isLoading || Object.keys(fileTree).length === 0 || !webContainer ? 
-                                         'bg-slate-300 text-slate-500 cursor-not-allowed' : 
-                                         'bg-green-500 hover:bg-green-600 text-white'}`}
-                                title={!webContainer ? "WebContainer is not available in this environment" : ""}
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <i className="ri-loader-4-line animate-spin"></i>
-                                        <span>Running...</span>
-                                    </>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-hidden bg-gray-950">
+                            <div className="h-full rounded-lg overflow-hidden border border-gray-800 bg-gray-900 shadow-xl m-4">
+                                {activeTab === 'code' ? (
+                                    <CodeEditor
+                                        file={selectedFile}
+                                        onUpdateFile={handleFileUpdate}
+                                    />
+                                ) : webContainer ? (
+                                    <PreviewFrame
+                                        webContainer={webContainer}
+                                        files={files}
+                                    />
                                 ) : (
-                                    <>
-                                        <i className="ri-play-fill"></i>
-                                        <span>Run Project</span>
-                                    </>
+                                    <div className="h-full flex items-center justify-center text-gray-400 p-8 text-center">
+                                        <div>
+                                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-800 flex items-center justify-center">
+                                                <i className="ri-error-warning-line text-2xl text-amber-500"></i>
+                                            </div>
+                                            <h3 className="text-lg font-medium text-gray-300 mb-2">
+                                                WebContainer Error
+                                            </h3>
+                                            <p className="text-gray-400 max-w-md mb-6">
+                                                {webContainerError || 'The WebContainer environment could not be initialized.'}
+                                            </p>
+                                            <button
+                                                onClick={() => window.location.reload()}
+                                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+                                            >
+                                                <i className="ri-refresh-line"></i>
+                                                Retry
+                                            </button>
+                                        </div>
+                                    </div>
                                 )}
-                            </motion.button>
+                            </div>
                         </div>
                     </div>
-                    
-                    <div className="bottom flex flex-grow max-w-full shrink overflow-auto">
-                        {currentFile && fileTree[currentFile] && 
-                         fileTree[currentFile].file && 
-                         fileTree[currentFile].file.contents ? (
-                            <div className="code-editor-area h-full overflow-auto flex-grow bg-slate-50 relative">
-                                <pre className="hljs h-full p-4 text-sm">
-                                    <code
-                                        className="hljs h-full outline-none font-mono leading-relaxed"
-                                        contentEditable
-                                        suppressContentEditableWarning
-                                        onBlur={(e) => {
-                                            const updatedContent = e.target.innerText;
-                                            const ft = {
-                                                ...fileTree,
-                                                [currentFile]: {
-                                                    file: {
-                                                        contents: updatedContent
-                                                    }
-                                                }
-                                            }
-                                            setFileTree(ft)
-                                            saveFileTree(ft)
-                                        }}
-                                        dangerouslySetInnerHTML={{ 
-                                            __html: hljs.highlight(
-                                                currentFile.endsWith('.js') || currentFile.endsWith('.jsx') ? 'javascript' :
-                                                currentFile.endsWith('.html') ? 'html' :
-                                                currentFile.endsWith('.css') ? 'css' :
-                                                currentFile.endsWith('.json') ? 'json' : 'javascript',
-                                                fileTree[currentFile].file.contents || ''
-                                            ).value 
-                                        }}
-                                        style={{
-                                            whiteSpace: 'pre-wrap',
-                                            paddingBottom: '25rem',
-                                            counterSet: 'line-numbering',
-                                        }}
-                                    />
-                                </pre>
-                                    </div>
-                                ) : (
-                            <div className="flex flex-col items-center justify-center h-full w-full text-slate-400">
-                                {openFiles.length === 0 ? (
-                                    <>
-                                        <i className="ri-code-line text-6xl mb-4 opacity-30"></i>
-                                        <p className="text-lg">Select a file to start coding</p>
-                                    </>
-                                ) : (
-                                    <>
-                                        <i className="ri-file-search-line text-5xl mb-4 opacity-30"></i>
-                                        <p className="text-lg">File not found or content empty</p>
-                                        {currentFile && (
-                                            <button
-                                                onClick={() => {
-                                                    // Create missing file structure if file exists in openFiles but not in fileTree
-                                                    if (!fileTree[currentFile] || !fileTree[currentFile].file) {
-                                                        const ft = {
-                                                            ...fileTree,
-                                                            [currentFile]: {
-                                                                file: {
-                                                                    contents: ''
-                                                                }
-                                                            }
-                                                        };
-                                                        setFileTree(ft);
-                                                        saveFileTree(ft);
-                                                    }
-                                                }}
-                                                className="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
-                                            >
-                                                Create file
-                                            </button>
-                                        )}
-                                    </>
-                        )}
-                    </div>
-                        )}
-                    </div>
                 </div>
-
-                    {iframeUrl && webContainer && (
-                        <motion.div 
-                        initial={{ opacity: 0, width: 0 }}
-                        animate={{ opacity: 1, width: 'min-w-96' }}
-                        transition={{ duration: 0.3 }}
-                        className="flex flex-col h-full border-l border-slate-200"
-                    >
-                        <div className="address-bar flex items-center bg-slate-50 border-b border-slate-200 p-2">
-                            <div className="flex items-center bg-white w-full rounded border border-slate-300 overflow-hidden focus-within:ring-1 focus-within:ring-blue-400">
-                                <span className="px-2 text-slate-400"><i className="ri-globe-line"></i></span>
-                                <input 
-                                    type="text"
-                                    onChange={(e) => setIframeUrl(e.target.value)}
-                                    value={iframeUrl} 
-                                    className="w-full p-2 outline-none text-sm" 
-                                />
-                                <button 
-                                    onClick={() => setIframeUrl(iframeUrl)} 
-                                    className="px-3 text-slate-500 hover:text-slate-700"
-                                >
-                                    <i className="ri-refresh-line"></i>
-                                </button>
-                                            </div>
-                                            </div>
-                        <div className="relative h-full flex-grow">
-                            <iframe src={iframeUrl} className="w-full h-full border-none" title="Preview"></iframe>
-                                        </div>
-                                    </motion.div>
-                                )}
-            </motion.section>
+            </div>
             
             <AnimatePresence>
                 {isModalOpen && (

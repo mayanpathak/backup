@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useUser } from '../context/user.context'; // Use useUser hook instead of UserContext
-import axios from '../config/axios'; // Assuming path is correct
+import { UserContext } from '../context/user.context';
+import axios from '../config/axios';
 import { motion } from 'framer-motion';
-import { Mail, Lock, UserPlus, AlertCircle } from 'lucide-react'; // Ensure lucide-react is installed
+import { Mail, Lock, UserPlus, AlertCircle } from 'lucide-react';
 
 const Register = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false); // Added isLoading state
-    const { login, clearUser } = useUser(); // Use login function instead of setUser
+    const { login, clearUser } = useContext(UserContext);
     const navigate = useNavigate();
 
     async function submitHandler(e) {

@@ -273,13 +273,15 @@ const LandingPage = () => {
                 Go to My Projects
               </motion.button>
             ) : (
-              <motion.button 
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className={`px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all text-lg font-medium ${isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white'}`}
-              >
-                Get Started Free
-              </motion.button>
+              <Link to="/register">
+                <motion.button 
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={`px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all text-lg font-medium ${isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white'}`}
+                >
+                  Get Started Free
+                </motion.button>
+              </Link>
             )}
             <motion.button 
               whileHover={{ scale: 1.05 }}
@@ -459,13 +461,15 @@ const LandingPage = () => {
               Go to My Projects
             </motion.button>
           ) : (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className={`px-8 py-4 rounded-lg shadow-lg hover:shadow-xl transition-all text-lg font-medium ${isDarkMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-900'}`}
-            >
-              Start Building For Free
-            </motion.button>
+            <Link to="/register">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className={`px-8 py-4 rounded-lg shadow-lg hover:shadow-xl transition-all text-lg font-medium ${isDarkMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-900'}`}
+              >
+                Start Building For Free
+              </motion.button>
+            </Link>
           )}
         </motion.div>
       </motion.section>

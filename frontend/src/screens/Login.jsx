@@ -361,7 +361,7 @@
 // export default Login;
 import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useUser } from '../context/user.context'; // Correctly import useUser
+import { UserContext } from '../context/user.context';
 import axios from '../config/axios';
 import { motion } from 'framer-motion';
 import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react';
@@ -372,7 +372,7 @@ const Login = () => {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [fieldErrors, setFieldErrors] = useState({});
-    const { login, clearUser } = useUser(); // Use the new login function from useUser
+    const { login, clearUser } = useContext(UserContext);
     const navigate = useNavigate();
 
     // Client-side validation
