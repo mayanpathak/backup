@@ -6,13 +6,8 @@ import { motion } from 'framer-motion'; // Ensure motion is imported for animati
 
 // Utility function to conditionally join Tailwind CSS classes.
 // This is a common pattern for handling dynamic classes.
-function cn(...inputs: (string | undefined | null | boolean)[]) {
+function cn(...inputs) {
   return inputs.filter(Boolean).join(' ');
-}
-
-interface PreviewFrameProps {
-  files: any[];
-  webContainer: WebContainer | null; // Allow webContainer to be null initially
 }
 
 // --- Inline SVG Icons (replacing lucide-react for self-containment) ---
@@ -77,7 +72,7 @@ const CustomRefreshCw = () => (
 // --- UI Components ---
 
 // Loading State Component
-const LoadingState = ({ message }: { message: string }) => (
+const LoadingState = ({ message }) => (
   <div className="text-center p-8 flex flex-col items-center justify-center gap-5">
     {/* Enhanced spinner for premium feel */}
     <motion.div
@@ -95,7 +90,7 @@ const LoadingState = ({ message }: { message: string }) => (
 );
 
 // Error Display Component
-const ErrorDisplay = ({ error, onRetry }: { error: string; onRetry: () => void }) => (
+const ErrorDisplay = ({ error, onRetry }) => (
   <div className="text-center p-8 bg-gradient-to-br from-red-900/20 to-gray-900/20 rounded-xl border border-red-800/40 shadow-xl max-w-lg mx-auto">
     <CustomAlertOctagon /> {/* Using custom SVG alert octagon */}
     <h3 className="text-red-400 font-bold text-xl mb-3">Preview Error Encountered</h3>
@@ -112,11 +107,11 @@ const ErrorDisplay = ({ error, onRetry }: { error: string; onRetry: () => void }
 
 // --- Main PreviewFrame Component ---
 
-export function PreviewFrame({ files, webContainer }: PreviewFrameProps) {
-  const [url, setUrl] = useState<string>('');
-  const [loadingMessage, setLoadingMessage] = useState<string>('');
-  const [error, setError] = useState<string | null>(null);
-  const [isReady, setIsReady] = useState<boolean>(false); // Tracks if webcontainer is fully ready for preview
+export function PreviewFrame({ files, webContainer }) {
+  const [url, setUrl] = useState('');
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const [error, setError] = useState(null);
+  const [isReady, setIsReady] = useState(false); // Tracks if webcontainer is fully ready for preview
   const [retryAttempt, setRetryAttempt] = useState(0); // Renamed for clarity
 
   // Helper function to handle npm install process

@@ -5,12 +5,12 @@ import { FileItem } from '../types';
 /**
  * Creates a ZIP file from an array of FileItem objects and initiates download
  */
-export async function downloadProjectAsZip(files: FileItem[], projectName: string = 'bolt-project'): Promise<void> {
+export async function downloadProjectAsZip(files, projectName = 'bolt-project') {
   try {
     const zip = new JSZip();
     
     // Recursively add files to the zip
-    const addFilesToZip = (fileItems: FileItem[], currentPath: string = '') => {
+    const addFilesToZip = (fileItems, currentPath = '') => {
       fileItems.forEach(item => {
         // Skip files with invalid paths
         if (!item.path) return;

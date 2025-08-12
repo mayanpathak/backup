@@ -3,32 +3,9 @@
 import { useState, memo } from 'react';
 import { FolderTree, File, ChevronRight, ChevronDown, FileCode, FileJson, FileText, Folder } from 'lucide-react';
 
-// Mock types for the component
-interface FileItem {
-  name: string;
-  path: string;
-  type: 'file' | 'folder';
-  children?: FileItem[];
-  size?: number;
-}
+const cn = (...classes) => classes.filter(Boolean).join(' ');
 
-interface FileExplorerProps {
-  files: FileItem[];
-  onFileSelect: (file: FileItem) => void;
-  selectedPath?: string;
-}
-
-interface FileNodeProps {
-  item: FileItem;
-  depth: number;
-  onFileClick: (file: FileItem) => void;
-  selectedPath?: string;
-  index: number;
-}
-
-const cn = (...classes: (string | undefined | false)[]) => classes.filter(Boolean).join(' ');
-
-function getFileIcon(fileName: string) {
+function getFileIcon(fileName) {
   const extension = fileName.split('.').pop()?.toLowerCase();
   
   switch (extension) {
@@ -56,7 +33,7 @@ function getFileIcon(fileName: string) {
   }
 }
 
-function getFileTypeLabel(fileName: string): string {
+function getFileTypeLabel(fileName) {
   const extension = fileName.split('.').pop()?.toLowerCase();
   
   switch (extension) {
@@ -75,14 +52,14 @@ function getFileTypeLabel(fileName: string): string {
   }
 }
 
-function formatFileSize(bytes?: number): string {
+function formatFileSize(bytes) {
   if (!bytes) return '';
   if (bytes < 1024) return `${bytes}B`;
   if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)}KB`;
   return `${(bytes / 1048576).toFixed(1)}MB`;
 }
 
-const FileNode = memo(({ item, depth, onFileClick, selectedPath, index }: FileNodeProps) => {
+const FileNode = memo(({ item, depth, onFileClick, selectedPath, index }) => {
   const [isExpanded, setIsExpanded] = useState(item.type === 'folder');
   const isSelected = selectedPath === item.path;
   const fileTypeLabel = item.type === 'file' ? getFileTypeLabel(item.name) : '';
@@ -206,7 +183,7 @@ const FileNode = memo(({ item, depth, onFileClick, selectedPath, index }: FileNo
 
 FileNode.displayName = 'FileNode';
 
-export function WilderFileExplorer({ files, onFileSelect, selectedPath }: FileExplorerProps) {
+export function WilderFileExplorer({ files, onFileSelect, selectedPath }) {
   const sortedFiles = [...files].sort((a, b) => {
     if (a.type === 'folder' && b.type === 'file') return -1;
     if (a.type === 'file' && b.type === 'folder') return 1;
@@ -261,9 +238,9 @@ export function WilderFileExplorer({ files, onFileSelect, selectedPath }: FileEx
 
 // Demo component with sample data
 export default function WilderFileExplorerDemo() {
-  const [selectedPath, setSelectedPath] = useState<string>('');
+  const [selectedPath, setSelectedPath] = useState('');
 
-  const sampleFiles: FileItem[] = [
+  const sampleFiles = [
     {
       name: 'src',
       path: '/src',
@@ -298,7 +275,7 @@ export default function WilderFileExplorerDemo() {
     { name: 'tsconfig.json', path: '/tsconfig.json', type: 'file', size: 512 }
   ];
 
-  const handleFileSelect = (file: FileItem) => {
+  const handleFileSelect = (file) => {
     setSelectedPath(file.path);
     console.log('Selected file:', file);
   };

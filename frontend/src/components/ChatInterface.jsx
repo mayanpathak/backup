@@ -376,7 +376,7 @@ export function ChatInterface({
                 minHeight: '44px'
               }}
               onInput={(e) => {
-                const target = e.target as HTMLTextAreaElement;
+                const target = e.target;
                 target.style.height = 'auto';
                 target.style.height = Math.min(target.scrollHeight, 128) + 'px';
               }}

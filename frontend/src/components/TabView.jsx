@@ -2,16 +2,8 @@
 import React from 'react';
 
 // Utility function to conditionally join Tailwind CSS classes.
-function cn(...inputs: (string | undefined | null | boolean)[]) {
+function cn(...inputs) {
   return inputs.filter(Boolean).join(' ');
-}
-
-// --- Type Definition for Tab ---
-type Tab = 'code' | 'preview';
-
-interface TabViewProps {
-  activeTab: Tab;
-  onTabChange: (tab: Tab) => void;
 }
 
 // --- Inline SVG Icons (replacing lucide-react for self-containment) ---
@@ -35,7 +27,7 @@ const tabsConfig = [
   { id: 'preview', label: 'Preview', icon: IconEye },
 ];
 
-export function TabView({ activeTab, onTabChange }: TabViewProps) {
+export function TabView({ activeTab, onTabChange }) {
   return (
     <div
       className="relative flex border border-gray-800 rounded-lg bg-gray-900 overflow-hidden w-fit"
@@ -49,7 +41,7 @@ export function TabView({ activeTab, onTabChange }: TabViewProps) {
         return (
           <button
             key={tab.id}
-            onClick={() => onTabChange(tab.id as Tab)}
+            onClick={() => onTabChange(tab.id)}
             className={cn(
               "relative z-10 flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 transition-colors duration-200",
               "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900",

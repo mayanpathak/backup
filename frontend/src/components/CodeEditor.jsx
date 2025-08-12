@@ -7,13 +7,8 @@ import { FileCode, Sparkles, Code2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-interface CodeEditorProps {
-  file: FileItem | null;
-  onUpdateFile?: (updatedFile: FileItem) => void;
-}
-
 // Determine language from file extension
-function getLanguage(filename: string) {
+function getLanguage(filename) {
   const extension = filename.split('.').pop()?.toLowerCase();
   
   switch (extension) {
@@ -40,8 +35,8 @@ function getLanguage(filename: string) {
   }
 }
 
-export function CodeEditor({ file, onUpdateFile }: CodeEditorProps) {
-  const [editorContent, setEditorContent] = useState<string>(file?.content || '');
+export function CodeEditor({ file, onUpdateFile }) {
+  const [editorContent, setEditorContent] = useState(file?.content || '');
 
   // Update editor content when file changes
   useEffect(() => {
@@ -50,7 +45,7 @@ export function CodeEditor({ file, onUpdateFile }: CodeEditorProps) {
     }
   }, [file]);
 
-  const handleEditorChange = (value: string | undefined) => {
+  const handleEditorChange = (value) => {
     if (!file || !value) return;
     
     setEditorContent(value);
@@ -75,7 +70,7 @@ export function CodeEditor({ file, onUpdateFile }: CodeEditorProps) {
       scale: 1,
       transition: {
         duration: 0.6,
-        ease: "easeOut" as const,
+        ease: "easeOut",
         staggerChildren: 0.1
       }
     }
@@ -86,7 +81,7 @@ export function CodeEditor({ file, onUpdateFile }: CodeEditorProps) {
     visible: { 
       opacity: 1, 
       y: 0,
-      transition: { duration: 0.4, ease: "easeOut" as const }
+      transition: { duration: 0.4, ease: "easeOut" }
     }
   };
 
@@ -95,7 +90,7 @@ export function CodeEditor({ file, onUpdateFile }: CodeEditorProps) {
     visible: { 
       opacity: 1, 
       x: 0,
-      transition: { duration: 0.5, ease: "easeOut" as const }
+      transition: { duration: 0.5, ease: "easeOut" }
     }
   };
 
@@ -104,7 +99,7 @@ export function CodeEditor({ file, onUpdateFile }: CodeEditorProps) {
     visible: { 
       opacity: 1, 
       scale: 1,
-      transition: { duration: 0.4, ease: "easeOut" as const }
+      transition: { duration: 0.4, ease: "easeOut" }
     }
   };
 
@@ -151,7 +146,7 @@ export function CodeEditor({ file, onUpdateFile }: CodeEditorProps) {
               duration: 3,
               repeat: Infinity,
               delay: i * 0.3,
-              ease: "easeInOut" as const,
+              ease: "easeInOut",
             }}
           />
         ))}
@@ -170,7 +165,7 @@ export function CodeEditor({ file, onUpdateFile }: CodeEditorProps) {
             transition={{
               duration: 6,
               repeat: Infinity,
-              ease: "easeInOut" as const,
+              ease: "easeInOut",
             }}
           >
             <motion.div
@@ -180,7 +175,7 @@ export function CodeEditor({ file, onUpdateFile }: CodeEditorProps) {
               transition={{
                 duration: 2,
                 repeat: Infinity,
-                ease: "easeInOut" as const,
+                ease: "easeInOut",
               }}
             >
               <FileCode className="w-10 h-10 text-blue-400" />
@@ -196,7 +191,7 @@ export function CodeEditor({ file, onUpdateFile }: CodeEditorProps) {
               transition={{
                 duration: 2,
                 repeat: Infinity,
-                ease: "easeInOut" as const,
+                ease: "easeInOut",
               }}
             />
           </motion.div>
@@ -269,7 +264,7 @@ export function CodeEditor({ file, onUpdateFile }: CodeEditorProps) {
               transition={{
                 duration: 2,
                 repeat: Infinity,
-                ease: "easeInOut" as const,
+                ease: "easeInOut",
               }}
             />
             
@@ -330,7 +325,7 @@ export function CodeEditor({ file, onUpdateFile }: CodeEditorProps) {
             transition={{
               duration: 10,
               repeat: Infinity,
-              ease: "easeInOut" as const,
+              ease: "easeInOut",
             }}
           />
 

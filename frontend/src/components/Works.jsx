@@ -1,17 +1,10 @@
 
 
 
-import { motion, HTMLMotionProps } from "framer-motion"; // Import HTMLMotionProps for type safety
-
-// Define a type for the individual step data
-interface HowItWorksStepData {
-  number: number;
-  title: string;
-  description: string;
-}
+import { motion } from "framer-motion";
 
 // Data for the "How It Works" steps
-const HOW_IT_WORKS_STEPS: HowItWorksStepData[] = [
+const HOW_IT_WORKS_STEPS = [
   {
     number: 1,
     title: "Give a Prompt",
@@ -30,7 +23,7 @@ const HOW_IT_WORKS_STEPS: HowItWorksStepData[] = [
 ];
 
 // Reusable Framer Motion configuration for blur-in animation
-const blurInAnimation: HTMLMotionProps<"div"> = {
+const blurInAnimation = {
   initial: { filter: 'blur(10px)', opacity: 0 }, // Added opacity for smoother fade-in
   animate: { filter: 'blur(0px)', opacity: 1 },
   transition: { duration: 0.5, ease: "easeOut" }, // Slightly longer duration and eased transition
@@ -41,7 +34,7 @@ function HowItWorksStep({
   number,
   title,
   description,
-}: HowItWorksStepData) { // Use the defined interface for props
+}) {
   return (
     <motion.div
       className="flex flex-col items-center text-center p-4 md:p-6 bg-gray-900 rounded-xl shadow-lg border border-gray-800" // Added background, padding, shadow, border

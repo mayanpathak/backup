@@ -28,7 +28,7 @@ import { Step, StepType } from './types';
  * 
  * The input can have strings in the middle they need to be ignored
  */
-export function parseXml(response: string): Step[] {
+export function parseXml(response) {
     // Extract the XML content between <boltArtifact> tags
     const xmlMatch = response.match(/<boltArtifact[^>]*>([\s\S]*?)<\/boltArtifact>/);
     
@@ -37,7 +37,7 @@ export function parseXml(response: string): Step[] {
     }
   
     const xmlContent = xmlMatch[1];
-    const steps: Step[] = [];
+    const steps = [];
     let stepId = 1;
   
     // Extract artifact title

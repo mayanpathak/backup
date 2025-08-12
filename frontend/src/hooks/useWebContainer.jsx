@@ -1,15 +1,9 @@
 import { useEffect, useState } from "react";
 import { WebContainer } from '@webcontainer/api';
 
-interface UseWebContainerResult {
-  webcontainer: WebContainer | undefined;
-  error: Error | null;
-  loading: boolean;
-}
-
-export function useWebContainer(): UseWebContainerResult {
-  const [webcontainer, setWebcontainer] = useState<WebContainer>();
-  const [error, setError] = useState<Error | null>(null);
+export function useWebContainer() {
+  const [webcontainer, setWebcontainer] = useState();
+  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

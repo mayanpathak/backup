@@ -1,16 +1,7 @@
-import  { createContext, useContext, useState, ReactNode } from 'react';
+import  { createContext, useContext, useState } from 'react';
 import React from 'react';
-export interface AppContextState {
-  prompt: string;
-  setPrompt: (prompt: string) => void;
-  currentStep: number;
-  setCurrentStep: (step: number) => void;
-  loading: boolean;
-  setLoading: (loading: boolean) => void;
-}
 
-
-const AppContext = createContext<AppContextState>({
+const AppContext = createContext({
   prompt: '',
   setPrompt: () => {},
   currentStep: 0,
@@ -19,12 +10,8 @@ const AppContext = createContext<AppContextState>({
   setLoading: () => {},
 });
 
-interface AppProviderProps {
-  children: ReactNode;
-}
-
 // Create provider component
-export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
+export const AppProvider = ({ children }) => {
   const [prompt, setPrompt] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
