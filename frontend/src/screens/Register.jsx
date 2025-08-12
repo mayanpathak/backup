@@ -1,6 +1,6 @@
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { UserContext } from '../context/user.context'; // Assuming path is correct
+import { useUser } from '../context/user.context'; // Use useUser hook instead of UserContext
 import axios from '../config/axios'; // Assuming path is correct
 import { motion } from 'framer-motion';
 import { Mail, Lock, UserPlus, AlertCircle } from 'lucide-react'; // Ensure lucide-react is installed
@@ -10,7 +10,7 @@ const Register = () => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false); // Added isLoading state
-    const { setUser, clearUser } = useContext(UserContext);
+    const { login, clearUser } = useUser(); // Use login function instead of setUser
     const navigate = useNavigate();
 
     async function submitHandler(e) {
@@ -29,8 +29,10 @@ const Register = () => {
             });
 
             setIsLoading(false);
-            if (response.data && response.data.user) {
-                setUser(response.data.user); // Set user in context
+            if (response.data && response.data.user && response.data.token) {
+                // Use the login function from context to store user and token
+                login(response.data.user, response.data.token);
+                console.log('User registered and authenticated, redirecting immediately to home');
                 navigate('/home', { replace: true }); // Redirect immediately to home
             } else {
                 // This case should ideally be handled by a specific error from the backend
@@ -48,7 +50,7 @@ const Register = () => {
                     setError(err.response.data?.error || err.response.data?.message || 'Registration failed. Please try again.');
                 }
             } else {
-                setError('user registered  if not redirected plzz try to log in ');
+                setError('Registration failed. Please try again or contact support if the issue persists.');
             }
             clearUser(); // Clear user data on any error
         }
