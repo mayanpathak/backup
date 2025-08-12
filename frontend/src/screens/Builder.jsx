@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ChatInterface } from '../components/ChatInterface';
 // import { FileExplorer } from '../components/FileExplorer';
 import { WilderFileExplorer as FileExplorer } from '../components/FileExplorer';
@@ -42,6 +42,7 @@ import { useAppContext } from '../context/AppContext';
 
 export function Builder() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useUser();
   const {
     prompt,
@@ -60,10 +61,14 @@ export function Builder() {
     loading: webContainerLoading,
   } = useWebContainer();
 
+  // Get project data from location state or use defaults
+  const project = location.state?.project;
+  const projectId = project?._id || 'default-project-' + Date.now();
+  const projectName = project?.name || 'Untitled Project';
+  
   // Chat related state
   const [chatMessages, setChatMessages] = useState([]);
   const [socket, setSocket] = useState(null);
-  const [projectId] = useState(() => 'default-project-' + Date.now()); // Generate or get from props
   
   // Additional states from Project.jsx
   const [searchResults, setSearchResults] = useState([]);
@@ -585,7 +590,7 @@ export function Builder() {
             <h1 className="text-xl font-semibold text-white">Wilder</h1>
             </button>
           <div className="h-6 mx-4 border-r border-gray-700"></div>
-          <h2 className="text-gray-300 hidden sm:block">Website Builder</h2>
+          <h2 className="text-gray-300 hidden sm:block">{projectName}</h2>
         </div>
         <div className="flex items-center gap-4">
           <button

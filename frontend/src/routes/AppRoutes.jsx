@@ -143,13 +143,12 @@
 
 // export default AppRoutes
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Screens
 import Login from '../screens/Login';
 import Register from '../screens/Register';
 import Home from '../screens/Home';
-import Project from '../screens/Project';
 import LandingPage from '../screens/LandingPage';
 import { Builder } from '../screens/Builder';
 
@@ -175,13 +174,10 @@ const AppRoutes = () => {
                     </UserAuth>
                 }
             />
+            {/* Redirect old /project route to new /builder route */}
             <Route
                 path="/project"
-                element={
-                    <UserAuth>
-                        <Project />
-                    </UserAuth>
-                }
+                element={<Navigate to="/builder" replace />}
             />
             <Route
                 path="/builder"

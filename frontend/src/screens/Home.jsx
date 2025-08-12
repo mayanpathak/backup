@@ -267,7 +267,7 @@
 //                                 whileHover={{ scale: 1.03, y: -5 }}
 //                                 whileTap={{ scale: 0.97 }}
 //                                 onClick={() => {
-//                                     navigate(`/project`, { state: { project } }); // Pass project data to project page
+//                                     navigate(`/builder`, { state: { project } }); // Pass project data to builder page
 //                                 }}
 //                                 className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 ease-in-out cursor-pointer h-64 flex flex-col"
 //                             >
@@ -617,7 +617,7 @@ const Home = () => {
                                 variants={itemVariants}
                                 whileHover={{ scale: 1.03, y: -5 }}
                                 whileTap={{ scale: 0.97 }}
-                                onClick={() => navigate(`/project`, { state: { project } })}
+                                onClick={() => navigate(`/builder`, { state: { project } })}
                                 className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl cursor-pointer h-64 flex flex-col"
                             >
                                 <div className={`h-28 ${getRandomColor(project._id)} p-6 relative flex flex-col justify-between`}>
